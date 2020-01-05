@@ -673,21 +673,21 @@ object Instructions {
   def PAUSE              = BitPat("b00000001000000000000000000001111")
 }
 object Causes {
-  val misaligned_fetch = 0x0
-  val fetch_access = 0x1
+  val misaligned_fetch    = 0x0
+  val fetch_access        = 0x1
   val illegal_instruction = 0x2
-  val breakpoint = 0x3
-  val misaligned_load = 0x4
-  val load_access = 0x5
-  val misaligned_store = 0x6
-  val store_access = 0x7
-  val user_ecall = 0x8
-  val supervisor_ecall = 0x9
-  val hypervisor_ecall = 0xa
-  val machine_ecall = 0xb
-  val fetch_page_fault = 0xc
-  val load_page_fault = 0xd
-  val store_page_fault = 0xf
+  val breakpoint          = 0x3
+  val misaligned_load     = 0x4
+  val load_access         = 0x5
+  val misaligned_store    = 0x6
+  val store_access        = 0x7
+  val user_ecall          = 0x8
+  val supervisor_ecall    = 0x9
+  val hypervisor_ecall    = 0xa
+  val machine_ecall       = 0xb
+  val fetch_page_fault    = 0xc
+  val load_page_fault     = 0xd
+  val store_page_fault    = 0xf
   val all = {
     val res = collection.mutable.ArrayBuffer[Int]()
     res += misaligned_fetch

@@ -18,6 +18,7 @@ abstract trait DecodeConstants extends HasCoreParameters
 }
 
 class IntCtrlSigs extends Bundle {
+  // 1. 译码生成的控制信号
   val legal = Bool()
   val fp = Bool()
   val rocc = Bool()
@@ -47,6 +48,8 @@ class IntCtrlSigs extends Bundle {
   val amo = Bool()
   val dp = Bool()
 
+  // 2. default:译码表缺失，说明是非法指令
+  //    译码结果第一项legal信号为N，表明非法
   def default: List[BitPat] =
                 //           jal                                                             renf1               fence.i
                 //   val     | jalr                                                          | renf2             |
@@ -58,12 +61,23 @@ class IntCtrlSigs extends Bundle {
                 //   | | | | | | | | scie      |       |      |      |         | |           | | | | | | |       | | | dp
                 List(N,X,X,X,X,X,X,X,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        X,X,X,X,X,X,X,CSR.X,X,X,X,X)
 
+  // 3. 译码逻辑主体部分
   def decode(inst: UInt, table: Iterable[(BitPat, List[BitPat])]) = {
+    // 调用DecodeLogic方法，译码结果存在decoder中
     val decoder = DecodeLogic(inst, default, table)
+
+    // 利用scala高阶特性: zip + map将decoder译码结果赋值给本Bundle中
+    // 展开来相当于
+    //      legal   := decoder.legal
+    //      fp      := decoder.fp
+    //      rocc    := decoder.rocc
+    //      ... 省略十几行
     val sigs = Seq(legal, fp, rocc, branch, jal, jalr, rxs2, rxs1, scie, sel_alu2,
                    sel_alu1, sel_imm, alu_dw, alu_fn, mem, mem_cmd,
                    rfs1, rfs2, rfs3, wfd, mul, div, wxd, csr, fence_i, fence, amo, dp)
     sigs zip decoder map {case(s,d) => s := d}
+
+    // 最后返回this即返回赋值完成后的IntCtrlSigs
     this
   }
 }
