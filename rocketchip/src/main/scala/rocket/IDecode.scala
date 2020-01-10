@@ -17,27 +17,37 @@ abstract trait DecodeConstants extends HasCoreParameters
   val table: Array[(BitPat, List[BitPat])]
 }
 
+// 1. 译码生成的控制信号
 class IntCtrlSigs extends Bundle {
-  // 1. 译码生成的控制信号
-  val legal = Bool()
-  val fp = Bool()
-  val rocc = Bool()
+
+  val legal = Bool()  // 是否非法指令
+  val fp = Bool()     // 是否浮点指令
+  val rocc = Bool()   // 是否协处理器相关指令
   val branch = Bool()
   val jal = Bool()
   val jalr = Bool()
+
+  // 读使能信号(xs猜测是excute stage)
   val rxs2 = Bool()
   val rxs1 = Bool()
   val scie = Bool()
+
+  // ALU 控制信号
   val sel_alu2 = Bits(width = A2_X.getWidth)
   val sel_alu1 = Bits(width = A1_X.getWidth)
   val sel_imm = Bits(width = IMM_X.getWidth)
-  val alu_dw = Bool()
-  val alu_fn = Bits(width = FN_X.getWidth)
+  val alu_dw = Bool()                       // double word 是否是64位
+  val alu_fn = Bits(width = FN_X.getWidth)  // ALU function
+
+  //
   val mem = Bool()
   val mem_cmd = Bits(width = M_SZ)
+
+  // 下面三个信号目前没找到连线，还不清楚
   val rfs1 = Bool()
   val rfs2 = Bool()
   val rfs3 = Bool()
+
   val wfd = Bool()
   val mul = Bool()
   val div = Bool()
@@ -45,8 +55,8 @@ class IntCtrlSigs extends Bundle {
   val csr = Bits(width = CSR.SZ)
   val fence_i = Bool()
   val fence = Bool()
-  val amo = Bool()
-  val dp = Bool()
+  val amo = Bool() // 原子指令
+  val dp = Bool()  // 双精度浮点指令
 
   // 2. default:译码表缺失，说明是非法指令
   //    译码结果第一项legal信号为N，表明非法
@@ -82,6 +92,7 @@ class IntCtrlSigs extends Bundle {
   }
 }
 
+// 所有RISC-V Core都必须实现这部分基础指令集
 class IDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
@@ -138,6 +149,7 @@ class IDecode(implicit val p: Parameters) extends DecodeConstants
     CSRRCI->    List(Y,N,N,N,N,N,N,N,N,A2_IMM, A1_ZERO,IMM_Z, DW_XPR,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.C,N,N,N,N))
 }
 
+// fence.i
 class FenceIDecode(flushDCache: Boolean)(implicit val p: Parameters) extends DecodeConstants
 {
   private val (v, cmd) = if (flushDCache) (Y, BitPat(M_FLUSH_ALL)) else (N, M_X)
@@ -200,6 +212,7 @@ class I64Decode(implicit val p: Parameters) extends DecodeConstants
     SRAW->      List(Y,N,N,N,N,N,Y,Y,N,A2_RS2, A1_RS1, IMM_X, DW_32,FN_SRA,    N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
+// 乘除法指令
 class MDecode(pipelinedMul: Boolean)(implicit val p: Parameters) extends DecodeConstants
 {
   val M = if (pipelinedMul) Y else N
@@ -216,6 +229,7 @@ class MDecode(pipelinedMul: Boolean)(implicit val p: Parameters) extends DecodeC
     REMU->      List(Y,N,N,N,N,N,Y,Y,N,A2_RS2, A1_RS1, IMM_X, DW_XPR,FN_REMU,  N,M_X,        N,N,N,N,N,Y,Y,CSR.N,N,N,N,N))
 }
 
+// 64位乘除法指令
 class M64Decode(pipelinedMul: Boolean)(implicit val p: Parameters) extends DecodeConstants
 {
   val M = if (pipelinedMul) Y else N
@@ -229,6 +243,7 @@ class M64Decode(pipelinedMul: Boolean)(implicit val p: Parameters) extends Decod
     REMUW->     List(Y,N,N,N,N,N,Y,Y,N,A2_RS2, A1_RS1, IMM_X, DW_32, FN_REMU,  N,M_X,        N,N,N,N,N,Y,Y,CSR.N,N,N,N,N))
 }
 
+// 原子指令
 class ADecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
@@ -246,6 +261,7 @@ class ADecode(implicit val p: Parameters) extends DecodeConstants
     SC_W->      List(Y,N,N,N,N,N,Y,Y,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_XSC,      N,N,N,N,N,N,Y,CSR.N,N,N,Y,N))
 }
 
+// 64位原子指令
 class A64Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
@@ -263,6 +279,7 @@ class A64Decode(implicit val p: Parameters) extends DecodeConstants
     SC_D->      List(Y,N,N,N,N,N,Y,Y,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_XSC,      N,N,N,N,N,N,Y,CSR.N,N,N,Y,N))
 }
 
+// 单精度浮点指令
 class FDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
@@ -294,6 +311,7 @@ class FDecode(implicit val p: Parameters) extends DecodeConstants
     FSQRT_S->   List(Y,Y,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        Y,Y,N,Y,N,N,N,CSR.N,N,N,N,N))
 }
 
+// 双精度浮点指令
 class DDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
@@ -325,6 +343,7 @@ class DDecode(implicit val p: Parameters) extends DecodeConstants
     FSQRT_D->   List(Y,Y,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        Y,Y,N,Y,N,N,N,CSR.N,N,N,N,Y))
 }
 
+
 class F64Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
@@ -351,6 +370,7 @@ class SCIEDecode(implicit val p: Parameters) extends DecodeConstants
     SCIE.opcode->       List(Y,N,N,N,N,N,Y,Y,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
+// 协处理器指令译码
 class RoCCDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(

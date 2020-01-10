@@ -14,7 +14,11 @@ class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {
   def mask = {
     var res = UInt(1)
     for (i <- 0 until log2Up(maxSize)) {
-      val upper = Mux(addr(i), res, UInt(0)) | Mux(size >= UInt(i+1), UInt((BigInt(1) << (1 << i))-1), UInt(0))
+      val upper = Mux(addr(i), res,
+                        UInt(0)) | Mux( size >= UInt(i+1),
+                                        UInt((BigInt(1) << (1 << i))-1),
+                                        UInt(0)
+                                      )
       val lower = Mux(addr(i), UInt(0), res)
       res = Cat(upper, lower)
     }

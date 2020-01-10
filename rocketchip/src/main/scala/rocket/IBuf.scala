@@ -8,16 +8,23 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 
+// 指令Buffer -> 译码模块 : 输出指令
 class Instruction(implicit val p: Parameters) extends ParameterizedBundle with HasCoreParameters {
+  // 普通指令(32位):只使用xcpt0, xcpt1无意义置0
+  // 压缩指令(RVC, 16位):前一条用xcpt0,后一条用xcpt1
   val xcpt0 = new FrontendExceptions // exceptions on first half of instruction
   val xcpt1 = new FrontendExceptions // exceptions on second half of instruction
+
   val replay = Bool()
-  val rvc = Bool()
-  val inst = new ExpandedInstruction
-  val raw = UInt(width = 32)
+
+  val rvc = Bool() // 是否是压缩指令
+  val inst = new ExpandedInstruction // 压缩指令扩展
+  val raw = UInt(width = 32) // 原始指令
+
   require(coreInstBits == (if (usingCompressed) 16 else 32))
 }
 
+// Instruction Buffer
 class IBuf(implicit p: Parameters) extends CoreModule {
   val io = new Bundle {
     val imem = Decoupled(new FrontendResp).flip
@@ -27,16 +34,27 @@ class IBuf(implicit p: Parameters) extends CoreModule {
     val inst = Vec(retireWidth, Decoupled(new Instruction))
   }
 
+  // 暂时还是单发射，每次只译码一条指令
   // This module is meant to be more general, but it's not there yet
   require(decodeWidth == 1)
 
-  val n = fetchWidth - 1
+  // 拷贝一份RocketCore.scala中的默认配置过来,方便阅读
+  // val fetchWidth: Int = if (useCompressed) 2 else 1
+  // val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
+  // val retireWidth: Int = 1
+  // val instBits: Int = if (useCompressed) 16 else 32
+
+
+  val n = fetchWidth - 1  // n==0 表示没有使用压缩指令
+
+  //
   val nBufValid = if (n == 0) UInt(0) else Reg(init=UInt(0, log2Ceil(fetchWidth)))
   val buf = Reg(io.imem.bits)
   val ibufBTBResp = Reg(new BTBResp)
-  val pcWordMask = UInt(coreInstBytes*fetchWidth-1, vaddrBitsExtended)
 
+  val pcWordMask = UInt(coreInstBytes*fetchWidth-1, vaddrBitsExtended)
   val pcWordBits = io.imem.bits.pc.extract(log2Ceil(fetchWidth*coreInstBytes)-1, log2Ceil(coreInstBytes))
+
   val nReady = Wire(init = UInt(0, log2Ceil(fetchWidth+1)))
   val nIC = Mux(io.imem.bits.btb.taken, io.imem.bits.btb.bridx +& 1, UInt(fetchWidth)) - pcWordBits
   val nICReady = nReady - nBufValid

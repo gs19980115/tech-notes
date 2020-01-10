@@ -10,7 +10,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.HasCoreParameters
 import freechips.rocketchip.util._
-
+// BHT 与 BTB 参数config
 case class BHTParams(
   nEntries: Int = 512,
   counterLength: Int = 1,
@@ -24,6 +24,7 @@ case class BTBParams(
   nRAS: Int = 6,
   bhtParams: Option[BHTParams] = Some(BHTParams()),
   updatesOutOfOrder: Boolean = false)
+
 
 trait HasBtbParameters extends HasCoreParameters { this: InstanceId =>
   val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
@@ -39,7 +40,13 @@ abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbP
 
 abstract class BtbBundle(implicit val p: Parameters) extends Bundle with HasBtbParameters
 
+// Return Address stack
+//   主要针对函数调用进行优化:
+//      - Call相关指令入栈, 记录返回地址
+//      - Return相关指令出栈, 根据记录的返回地址预测跳转
 class RAS(nras: Int) {
+
+  // call
   def push(addr: UInt): Unit = {
     when (count < nras) { count := count + 1 }
     val nextPos = Mux(Bool(isPow2(nras)) || pos < nras-1, pos+1, UInt(0))
@@ -47,6 +54,8 @@ class RAS(nras: Int) {
     pos := nextPos
   }
   def peek: UInt = stack(pos)
+
+  // ret
   def pop(): Unit = when (!isEmpty) {
     count := count - 1
     pos := Mux(Bool(isPow2(nras)) || pos > 0, pos-1, UInt(nras-1))
@@ -54,8 +63,11 @@ class RAS(nras: Int) {
   def clear(): Unit = count := UInt(0)
   def isEmpty: Bool = count === UInt(0)
 
+  // 当前栈中有效项数
   private val count = Reg(UInt(width = log2Up(nras+1)))
+  // 栈顶位置
   private val pos = Reg(UInt(width = log2Up(nras)))
+  // 本体 ^_^
   private val stack = Reg(Vec(nras, UInt()))
 }
 
@@ -114,6 +126,7 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
   val history = Reg(UInt(width = params.historyLength))
 }
 
+// Control Flow Instrctions 控制流指令
 object CFIType {
   def SZ = 2
   def apply() = UInt(width = SZ)
@@ -309,8 +322,10 @@ class BTB(implicit p: Parameters) extends BtbModule {
     io.resp.bits.bht := res
   }
 
+  // nRAS: 返回预测栈深度(默认为6)
   if (btbParams.nRAS > 0) {
     val ras = new RAS(btbParams.nRAS)
+    //
     val doPeek = (idxHit & cfiType.map(_ === CFIType.ret).asUInt).orR
     io.ras_head.valid := !ras.isEmpty
     io.ras_head.bits := ras.peek

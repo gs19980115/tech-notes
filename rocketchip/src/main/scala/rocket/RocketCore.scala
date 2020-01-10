@@ -47,11 +47,17 @@ case class RocketCoreParams(
   val lgPauseCycles = 5
   val haveFSDirty = false
   val pmpGranularity: Int = 4
-  val fetchWidth: Int = if (useCompressed) 2 else 1
+
+  // Frontend一次送来指令数目
   //  fetchWidth doubled, but coreInstBytes halved, for RVC:
+  val fetchWidth: Int = if (useCompressed) 2 else 1
+  // 译码指令数为1(单发射)
   val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
+  // 实际消耗的指令数为1
   val retireWidth: Int = 1
+  // 每条指令宽度
   val instBits: Int = if (useCompressed) 16 else 32
+
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
 }

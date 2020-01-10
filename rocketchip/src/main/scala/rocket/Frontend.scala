@@ -18,21 +18,28 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{ICacheLogicalTree
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
-  val speculative = Bool()
+  val speculative = Bool() // 预测执行
 }
 
+// 前端TLB传来的异常
 class FrontendExceptions extends Bundle {
+  // Instruction page fault
   val pf = new Bundle {
     val inst = Bool()
   }
+  // Instruction access fault
   val ae = new Bundle {
     val inst = Bool()
   }
 }
 
+// Frontend -> IBuf
 class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val btb = new BTBResp
   val pc = UInt(width = vaddrBitsExtended)  // ID stage PC
+  // 当前版本Frontend发送给Instruction Buffer只有32位
+  //  - 有压缩指令: 2 * 16bit
+  //  - 无压缩指令: 1 * 32bit
   val data = UInt(width = fetchWidth * coreInstBits)
   val mask = Bits(width = fetchWidth)
   val xcpt = new FrontendExceptions
@@ -214,8 +221,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       val rviBranch = rviBits(6,0) === Instructions.BEQ.value.asUInt()(6,0)
       val rviJump = rviBits(6,0) === Instructions.JAL.value.asUInt()(6,0)
       val rviJALR = rviBits(6,0) === Instructions.JALR.value.asUInt()(6,0)
-      val rviReturn = rviJALR && !rviBits(7) && BitPat("b00?01") === rviBits(19,15)
+      // 用于RAS
+      val rviReturn = rviJALR && !rviBits(7) && BitPat("b00?01") === rviBits(19,15) // x1(ra) 或 x5(link)
       val rviCall = (rviJALR || rviJump) && rviBits(7)
+
       val rvcBranch = bits === Instructions.C_BEQZ || bits === Instructions.C_BNEZ
       val rvcJAL = Bool(xLen == 32) && bits === Instructions.C_JAL
       val rvcJump = bits === Instructions.C_J || rvcJAL
